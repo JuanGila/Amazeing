@@ -505,3 +505,61 @@ config.txt
             │
       Terminal/MiniLibX
 ```
+
+
+```text
+a_maze_ing/
+│
+├── a_maze_ing.py
+├── config.txt
+├── Makefile
+│
+├── core/
+│   ├── __init__.py
+│   ├── maze.py
+│   ├── maze_generator.py
+│   └── maze_solver.py
+│
+├── themes/
+│   ├── __init__.py
+│   ├── maze_themes.py
+│   └── maze_renderers.py
+│
+├── application/
+│   ├── __init__.py
+│   ├── app.py
+│   ├── app_state.py
+│   │
+│   └── services/
+│       ├── __init__.py
+│       ├── maze_service.py
+│       └── theme_service.py
+│
+├── menu/
+│   ├── __init__.py
+│   ├── menu_controller.py
+│   ├── menu_option.py
+│   ├── menu_state.py
+│   └── menu_actions.py
+│
+├── display/
+│   ├── __init__.py
+│   │
+│   ├── base_backend.py
+│   ├── display_manager.py
+│   │
+│   ├── views/
+│   │   ├── __init__.py
+│   │   ├── maze_view.py
+│   │   ├── menu_view.py
+│   │   └── status_view.py
+│   │
+│   └── backends/
+│       ├── __init__.py
+│       ├── terminal_backend.py
+│       └── mlx_backend.py
+│
+└── utils/
+    ├── __init__.py
+    └── ...
+```

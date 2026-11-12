@@ -38,6 +38,3 @@ output/*.txt
 
 # Logs
 *.log
-
-# Docs
-docs

@@ -14,31 +14,46 @@ User interactions must be available, at least for the following tasks:
 • Optional: set specific colours to display the “42” pattern -> OPCION 7
 
 
-You can add extra user interactions -> OPCIONES 5 Y 6
+You can add extra user interactions.
 """
+import sys
 import curses
-from typing import Callable
+from typing import Any, Callable, TextIO
 
 from core import Maze
-from themes import MAZE_THEMES
+from themes import MAZE_THEMES, MAZE_RENDERERS
 
 
 class MazeMenu:
-    def __init__(self, amazeing_maze: Maze):
+    """Lector de opciones del menú con validación de entrada.
+
+    Args:
+        amazeing_maze: Instancia de la clase Maze
+        input_stream: Flujo de entrada. Por defecto, ``sys.stdin``.
+        output_stream: Flujo de salida. Por defecto, ``sys.stdout``.
+    """
+    def __init__(
+        self, amazeing_maze: Maze,
+        input_stream: TextIO | Any = sys.stdin,
+        output_stream: TextIO | Any = sys.stdout
+    ):
         self.maze_menu_options: dict[str, tuple[str, Callable[[], None]]] = {
             "1": ("Re-generate a new maze", self.regenerate_maze),
             "2": ("Display Maze", self.display_maze),
             # creo que esto es inutil, ya que el laberinto se muestra siempre resuelto, resolver el mazo entra dentro de las acciones a realizar en bulce en el programa
-            "3": ("Solve Maze", self.solve_maze),
-            "4": ("Select Maze Theme", self.select_maze_theme),
-            "5": ("Entry Point", self.set_entry_point),
-            "6": ("Exit Point", self.set_exit_point),
-            "7": ("Display 42 Pattern Colour", self.display_42_pattern_colour),
+            "X": ("Solve Maze", self.solve_maze),
+            "3": ("Select Maze Theme", self.select_maze_theme),
+            "4": ("Select Maze Renderer", self.select_maze_renderer),
+            "5": ("Set Entry Point", self.set_entry_point),
+            "6": ("Set Exit Point", self.set_exit_point),
+            "7": ("Select 42 Pattern Colour", self.select_42_pattern_colour),
             "8": ("Show Shortest Path", self.show_shortest_path),
             "9": ("Hide Shortest Path", self.hide_shortest_path),
             "10": ("Exit Program", self.exit_program),
         }
         self.maze: Maze = amazeing_maze
+        self.input_stream = input_stream
+        self.output_stream = output_stream
 
     def display_menu(self) -> None:
         print("Maze Menu:")
@@ -55,12 +70,19 @@ class MazeMenu:
     def regenerate_maze(self) -> None:
         print("Regenerating a new maze...")
         # Implement the logic to regenerate a new maze. Creo que hay que ejecutar el mazegenerator
+        self.maze.regenerate_maze()
 
     def display_maze(self) -> None:
+        """"
+        CUANDO SE REGENERA EL MAZO UNA VEZ YA MOSTRADO, SE REGENERA Y SE MUESTRA OTRA VEZ,
+        PERO SI EN EL MENU SE CAMBIA EL THEME(sin cambiar la config)
+        Y LUEGO SE DECIDE MOSTRAR HAY QUE MOSTRAR EL MAZE ACTUAL
+        SIN REGENERARLO CON EL NUEVO THEME
+        """
         print("Displaying the maze...")
-        # Implement the logic to display the maze visually
+        self.maze.display_maze()
 
-    def solve_maze(self) -> None:
+    def select_maze_solve_algorithm(self) -> None:# Esta funcion tiene sentido si tenemos 2 algoritmos para resolver(a* + ¿claudia?)
         print("Solving the maze...")
         # Implement the logic to solve the maze and display the solution path
         maze_solver = "";
@@ -68,7 +90,8 @@ class MazeMenu:
     def select_maze_theme(self) -> None:
         maze_themes: list[str] = MAZE_THEMES.keys()
         print(f"Selecting the maze theme ...")
-        print(f"Selected theme: {self.maze.get_theme_name()}")
+        maze_theme = self.maze.get_maze_theme()
+        print(f"Selected theme: {maze_theme.theme_name}")
         print("Available Maze Themes:")
         for index, theme in enumerate(maze_themes):
             print(f"{index}: {theme}")
@@ -76,9 +99,26 @@ class MazeMenu:
         while not choice.isdigit() or not 0 <= int(choice) < len(maze_themes):
             print("Invalid choice. Please try again.")
             choice = input("Select a maze theme: ").strip()
-        self.maze.set_maze_theme(maze_themes[int(choice)])
-        print(f"Selected theme: {self.maze.get_theme_name()}")
+        maze_theme.set_theme_name(maze_themes[int(choice)])
+        self.maze.set_maze_theme(maze_theme)
+        print(f"Selected theme: {maze_theme.theme_name}")
         # CUIDADO, CADA VEZ QUE SE CAMBIA EL THEME HAY QUE EJECUTAR display_maze() con el nuevo tema y visualizarlo creo(con la opcion display-maze).
+
+    def select_maze_renderer(self) -> None:
+        maze_renderers: list[str] = MAZE_RENDERERS.keys()
+        print(f"Selecting the maze renderer ...")
+        maze_theme = self.maze.get_maze_theme()
+        print(f"Selected renderer: {maze_theme.theme_renderer}")
+        print("Available Maze Renderers:")
+        for index, theme in enumerate(maze_renderers):
+            print(f"{index}: {theme}")
+        choice = input("Select a maze renderer: ").strip()
+        while not choice.isdigit() or not 0 <= int(choice) < len(maze_renderers):
+            print("Invalid choice. Please try again.")
+            choice = input("Select a maze renderer: ").strip()
+        maze_theme.set_theme_renderer(maze_renderers[int(choice)])
+        self.maze.set_maze_theme(maze_theme)
+        print(f"Selected theme: {maze_theme.theme_name}")
 
     def set_entry_point(self) -> None:
         print("Setting entry point...")
@@ -113,7 +153,7 @@ class MazeMenu:
         """
         self.maze.get_maze_config().maze_exit = (x, y)
 
-    def display_42_pattern_colour(self) -> None:
+    def select_42_pattern_colour(self) -> None:
         print("Displaying 42 pattern colour...")
         # Implement the logic to display the 42 pattern colour
 
@@ -127,7 +167,7 @@ class MazeMenu:
 
     def exit_program(self) -> None:
         print("Exiting program ...")
-        exit()
+        exit()#self.running = False
 
     def run(self) -> None:
         """Start the interactive terminal menu."""
@@ -175,6 +215,59 @@ class MazeMenu:
                 #stdscr.refresh() - vibecoding
             elif key == 27:
                 break
+
+    # Opcion 2
+    def render_menu(theme_name: str, algorithm: str, show_path: bool) -> str:
+        """Construye el texto del menú con el estado actual."""
+        path_state = "visible" if show_path else "oculto"
+        lines = [
+            "",
+            "=== A-Maze-ing ===",
+            f"Tema: {theme_name} | Algoritmo: {algorithm} | "
+            f"Camino: {path_state}",
+            "",
+        ]
+        for option in MENU_OPTIONS:
+            lines.append(f"{option.key}. {option.label}")
+        return "\n".join(lines)
+
+    def prompt(
+        self, theme_name: str,
+        algorithm: str, show_path: bool
+    ) -> int | None:
+        """Pide una opción válida.
+
+        Returns:
+            El número de opción elegido, o ``None`` si la entrada se
+            ha cerrado inesperadamente.
+        """
+        while True:
+            self.output_stream.write(
+                render_menu(theme_name, algorithm, show_path) + "\n"
+            )
+            self.output_stream.write("> ")
+            self.output_stream.flush()
+            raw_line = self.input_stream.readline()
+            if raw_line == "":
+                self.output_stream.write("\n")
+                return None
+            text = raw_line.strip()
+            try:
+                choice = int(text)
+            except ValueError:
+                self._show_invalid()
+                continue
+            if choice < 1 or choice > EXIT_OPTION:
+                self._show_invalid()
+                continue
+            return choice
+
+    def _show_invalid(self) -> None:
+        """Informa de una opción no válida sin terminar el programa."""
+        self.output_stream.write(
+            "Opción no válida. Introduce un número del 1 al "
+            f"{EXIT_OPTION}.\n"
+        )
 
 """
 Una consideración importante: tus métodos actuales utilizan print() e input().

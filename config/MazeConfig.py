@@ -48,7 +48,7 @@ from pydantic import (
 from ..themes import (
     MazeThemeEnum, MazeThemeRendererEnum,
     MAZE_THEMES, DEFAULT_THEME,
-    RENDERERS, DEFAULT_RENDERER
+    MAZE_RENDERERS, DEFAULT_RENDERER
 )
 
 
@@ -228,7 +228,7 @@ class MazeConfigParser:
         renderer = self._parse_choice(
             "RENDERER",
             config_values.get("RENDERER", DEFAULT_RENDERER),
-            RENDERERS,
+            MAZE_RENDERERS,
         )
         config_data = {
             "maze_width": width, "maze_height": height, "maze_entry": entry,
@@ -321,6 +321,7 @@ class MazeConfig(BaseModel):
             raise ValueError(
                 "Invalid configuration: Maze exit can't be the same as entry."
             )
+        # Comprobar que tampoco pertenecen a las celdas del patron 42(seed-logo)
         return self
 
     @classmethod

@@ -54,11 +54,13 @@ Cell      Cell      get_cell()     get_neighbor()
 
 from pathlib import Path
 from enum import IntEnum
-from MazeCell import MazeCell
 from dataclasses import dataclass
-from MazeDirections import MazeDirection
-from config.MazeConfig import MazeConfig
-from themes.MazeTheme import MazeTheme
+from config import MazeConfig
+from themes import MazeTheme
+
+
+class MazeError(Exception):
+    """Raised when a maze cannot be built, generated or solved."""
 
 
 class MazeDirection(IntEnum):
@@ -81,11 +83,42 @@ class MazeDirection(IntEnum):
             4: (0, 1),
             8: (-1, 0),
         }[self.value]
+    @property
+    def delta_claudia(self) -> tuple[int, int]:
+        """Return the ``(dx, dy)`` offset for this direction."""
+        if self == MazeDirection.NORTH:
+            return (0, -1)
+        if self == MazeDirection.EAST:
+            return (1, 0)
+        if self == MazeDirection.SOUTH:
+            return (0, 1)
+        if self == MazeDirection.WEST:
+            return (-1, 0)
+        raise MazeError(f"Dirección no válida: {self!r}")
 
     @property
     def opposite(self) -> "MazeDirection":
-        """Return the opposite direction."""
+        """Return the opposite direction.
+        Return the direction seen from the neighbouring cell.
+        """
+        if self == MazeDirection.NORTH:
+            return MazeDirection.SOUTH
+        if self == MazeDirection.EAST:
+            return MazeDirection.WEST
+        if self == MazeDirection.SOUTH:
+            return MazeDirection.NORTH
+        if self == MazeDirection.WEST:
+            return MazeDirection.EAST
+        raise MazeError(f"Dirección no válida: {self!r}")
         return MazeDirection((self.value << 2) % 15 or 1)
+
+
+CARDINAL_DIRECTIONS: tuple[MazeDirection, ...] = (
+    MazeDirection.NORTH,
+    MazeDirection.EAST,
+    MazeDirection.SOUTH,
+    MazeDirection.WEST,
+)
 
 
 @dataclass
@@ -229,19 +262,16 @@ class Maze:
         return self._maze_config
 
     def set_maze_config(self, new_maze_config: MazeConfig) -> None:
+        """"Se modificara el objeto correspondiente
+        en la MazeConfig(usando validate-assigment)y se envia aqui la nueva con
+        la modificacion validada."""
         self._maze_config = new_maze_config
-    
-    def get_theme_name(self) -> str:
-        return self._maze_theme.theme_name
 
-    def set_maze_theme(self, new_maze_theme: str) -> None:
-        self._maze_theme.set_theme_name(new_maze_theme)
+    def get_maze_theme(self) -> MazeTheme:
+        return self._maze_theme
 
-    def get_theme_renderer(self) -> str:
-        return self._maze_theme.theme_renderer
-
-    def set_theme_renderer(self, new_renderer_type: str) -> None:
-        self._maze_theme.set_theme_renderer(new_renderer_type)
+    def set_maze_theme(self, new_maze_theme: MazeTheme) -> None:
+        self._maze_theme = new_maze_theme
 
     def is_inside(self, x: int, y: int) -> bool:
         """Return whether coordinates are inside the maze."""
@@ -266,8 +296,8 @@ class Maze:
         return self.grid[y][x]
 
     def get_neighbor(
-            self, x: int, y: int, direction: MazeDirection
-        ) -> tuple[int, int] | None:
+        self, x: int, y: int, direction: MazeDirection
+    ) -> tuple[int, int] | None:
         """Return the coordinates of a neighbouring cell.
 
         Args:
@@ -381,7 +411,7 @@ class Maze:
                 cell.visited = False
 
     def get_all_cells(self) -> list[tuple[int, int, MazeCell]]:
-        """Return all maze cells with their coordinates."""
+        """Return all maze cells with their coordinates(x, y)."""
         return [
             (x, y, self.grid[y][x])
             for y in range(self._maze_config.maze_height)
@@ -422,9 +452,171 @@ class Maze:
             # Escribimos the shortest valid path from entry to exit, using the four letters N , E , S , W .
             file.write(self.shortest_path + "\n")
 
+    def display_maze(self) -> None:
+        """Function that displays the maze based in self._maze_theme.renderer_type"""
+        pass
+    def regenerate_maze(self) -> None:
+        """Function that regenerates the maze based in self._maze_config.maze_algorithm"""
+        pass
 
-"""Compatibility exports for the reusable maze model."""
+    def cells(self) -> Iterator[tuple[int, int]]:
+        """Yield every cell coordinate in row-major order."""
+        for y in range(self.height):
+            for x in range(self.width):
+                yield x, y
 
-from mazegen import Cell, Maze, MazeError
+    def non_pattern_cells(self) -> list[tuple[int, int]]:
+        """Return every walkable coordinate, excluding the ``42`` cells."""
+        return [
+            (x, y)
+            for x, y in self.cells()
+            if (x, y) not in self.pattern42_cells
+        ]
 
-__all__ = ["Cell", "Maze", "MazeError"]
+    def open_neighbors(self, x: int, y: int) -> list[tuple[int, int]]:
+        """Return neighbours reachable through open passages."""
+        if (x, y) in self.pattern42_cells:
+            return []
+        result: list[tuple[int, int]] = []
+        for direction in CARDINAL_DIRECTIONS:
+            neighbor = self.get_neighbor(x, y, direction)
+            if neighbor is None or neighbor in self.pattern42_cells:
+                continue
+            neighbor_x, neighbor_y = neighbor
+            if self.has_wall(x, y, direction):
+                continue
+            if self.has_wall(
+                neighbor_x,
+                neighbor_y,
+                direction.opposite,
+            ):
+                continue
+            result.append(neighbor)
+        return result
+
+    def region(
+        self, start: tuple[int, int] | None = None
+    ) -> set[tuple[int, int]]:
+        """Return every cell connected to ``start`` through passages."""
+        origin = self.entry if start is None else start
+        self.get_cell(*origin)
+        seen: set[tuple[int, int]] = {origin}
+        pending: list[tuple[int, int]] = [origin]
+        while pending:
+            current = pending.pop()
+            for neighbor in self.open_neighbors(*current):
+                if neighbor not in seen:
+                    seen.add(neighbor)
+                    pending.append(neighbor)
+        return seen
+
+    def is_fully_connected(self) -> bool:
+        """Return whether every non-``42`` cell belongs to one region."""
+        target = set(self.non_pattern_cells())
+        if not target:
+            return True
+        return self.region(self.entry) == target
+
+    def count_passages(self) -> int:
+        """Return the number of open passages between adjacent cells."""
+        total = 0
+        for x, y in self.non_pattern_cells():
+            for direction in (MazeDirection.EAST, MazeDirection.SOUTH):
+                neighbor = self.get_neighbor(x, y, direction)
+                if neighbor is None:
+                    continue
+                if neighbor in self.pattern42_cells:
+                    continue
+                neighbor_x, neighbor_y = neighbor
+                if self.has_wall(x, y, direction):
+                    continue
+                if self.has_wall(
+                    neighbor_x,
+                    neighbor_y,
+                    direction.opposite,
+                ):
+                    continue
+                total += 1
+        return total
+
+    def count_loops(self) -> int:
+        """Return the number of independent cycles in the walkable graph."""
+        cells = self.non_pattern_cells()
+        if not cells:
+            return 0
+        remaining = set(cells)
+        components = 0
+        while remaining:
+            start = remaining.pop()
+            component = self.region(start)
+            remaining.difference_update(component)
+            components += 1
+        return self.count_passages() - len(cells) + components
+
+    def dead_end_cells(self) -> list[tuple[int, int]]:
+        """Return walkable cells with exactly one open passage.
+
+        This includes cells enclosed by the ``42`` pattern.  Use
+        :meth:`real_dead_end_cells` to count only the ones that could
+        still be connected to another normal cell.
+        """
+        return [
+            (x, y)
+            for x, y in self.non_pattern_cells()
+            if len(self.open_neighbors(x, y)) == 1
+        ]
+
+    def _has_openable_wall(self, x: int, y: int) -> bool:
+        for direction in CARDINAL_DIRECTIONS:
+            neighbor = self.get_neighbor(x, y, direction)
+            if neighbor is None:
+                continue
+            if neighbor in self.pattern42_cells:
+                continue
+            if self.has_wall(x, y, direction):
+                return True
+        return False
+
+    def real_dead_end_cells(self) -> list[tuple[int, int]]:
+        """Return dead ends with at least one wall openable to a cell."""
+        return [
+            (x, y)
+            for x, y in self.dead_end_cells()
+            if self._has_openable_wall(x, y)
+        ]
+
+    def enclosed_dead_end_cells(self) -> list[tuple[int, int]]:
+        """Return dead ends surrounded only by the border or ``42`` cells."""
+        real = set(self.real_dead_end_cells())
+        return [
+            cell for cell in self.dead_end_cells() if cell not in real
+        ]
+
+    def has_open_3x3(self) -> bool:
+        """Return whether the maze contains a fully open ``3x3`` area."""
+        for top in range(self.height - 2):
+            for left in range(self.width - 2):
+                if self._is_open_block(left, top):
+                    return True
+        return False
+
+    def _is_open_block(self, left: int, top: int) -> bool:
+        for y in range(top, top + 3):
+            for x in range(left, left + 3):
+                cell = self.get_cell(x, y)
+                if x < left + 2 and cell.has_wall(MazeDirection.EAST):
+                    return False
+                if y < top + 2 and cell.has_wall(MazeDirection.SOUTH):
+                    return False
+        return  True
+
+    def to_hex_rows(self) -> list[str]:
+        """Return one hexadecimal string per maze row."""
+        return [
+            "".join(cell.to_hex() for cell in row)
+            for row in self.grid
+        ]
+
+    def to_hex_grid(self) -> list[str]:
+        """Alias for :meth:`to_hex_rows` kept for convenience."""
+        return self.to_hex_rows()

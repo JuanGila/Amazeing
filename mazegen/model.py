@@ -428,7 +428,7 @@ class Maze:
                     return False
                 if y < top + 2 and cell.has_wall(Direction.SOUTH):
                     return False
-        return True
+        return  True
 
     def to_hex_rows(self) -> list[str]:
         """Return one hexadecimal string per maze row."""

@@ -146,5 +146,5 @@ MAZE_THEMES:  Final[dict[str, dict[str, MazeThemePalette]]] = {
     }
 }
 DEFAULT_THEME: Final[str] = MazeThemeEnum.MIDNIGHT_CYBER
-RENDERERS: Final[tuple[MazeThemeRendererEnum, ...]] = (MazeThemeRendererEnum.TERMINAL, MazeThemeRendererEnum.MINILIBX)
+MAZE_RENDERERS: Final[tuple[MazeThemeRendererEnum, ...]] = (MazeThemeRendererEnum.TERMINAL, MazeThemeRendererEnum.MINILIBX)
 DEFAULT_RENDERER: Final[MazeThemeRendererEnum] = MazeThemeRendererEnum.TERMINAL

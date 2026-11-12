@@ -4,7 +4,7 @@ from .Themes import (
     ColorType, MazeThemeEnum,
     MazeThemeRendererEnum, RESET,
     DEFAULT_THEME, MAZE_THEMES,
-    RENDERERS, DEFAULT_RENDERER
+    MAZE_RENDERERS, DEFAULT_RENDERER
 )
 from .MazeTheme import MazeTheme
 
@@ -15,7 +15,7 @@ __all__ = [
     "RESET",
     "DEFAULT_THEME",
     "MAZE_THEMES",
-    "RENDERERS",
+    "MAZE_RENDERERS",
     "DEFAULT_RENDERER",
     "MazeTheme"
 ]
